@@ -3,7 +3,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from datetime import datetime
-from signatures import SUSPICIOUS_EXTENSIONS
+from signatures import SUSPICIOUS_EXTENSIONS, SUSPICIOUS_NAMES
 
 BASE_DIR = Path(os.getenv("APPDATA") or Path.home())
 QUARANTINE_DIR = BASE_DIR / "usb_fixer_quarantine"
@@ -43,10 +43,19 @@ def fix_target(target: str):
 
     try:
         for item in root.iterdir():
-            low_name = item.name.lower()
+            low_name = item.stem.lower()
+            low_full_name = item.name.lower()
             suffix = item.suffix.lower()
 
-            if low_name == "autorun.inf" or suffix in SUSPICIOUS_EXTENSIONS:
+            should_quarantine = (
+                low_full_name == "autorun.inf"
+                or suffix in SUSPICIOUS_EXTENSIONS
+                or low_name in SUSPICIOUS_NAMES
+                or low_full_name in SUSPICIOUS_NAMES
+                or suffix == ".exe"
+            )
+
+            if should_quarantine:
                 moved = quarantine_file(str(item))
                 if moved:
                     quarantined.append({"from": str(item), "to": moved})

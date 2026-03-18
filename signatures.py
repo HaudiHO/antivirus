@@ -6,5 +6,18 @@ SUSPICIOUS_EXTENSIONS = {
     ".bat",
     ".scr",
     ".pif",
-    ".wsf"
+    ".wsf",
+    ".exe"
+}
+
+SUSPICIOUS_NAMES = {
+    "usb disk",
+    "usb disk(58gb)",
+    "removable disk",
+    "my folder",
+    "documents",
+    "photos",
+    "videos",
+    "data",
+    "new folder"
 }
