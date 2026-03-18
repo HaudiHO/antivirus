@@ -1,5 +1,7 @@
 import os
 import sys
+import threading
+import webbrowser
 from flask import Flask, render_template, jsonify, request
 from scanner import scan_all_targets
 from remediation import fix_target
@@ -28,5 +30,9 @@ def fix():
     target = data.get("target")
     return jsonify(fix_target(target))
 
+def open_browser():
+    webbrowser.open("http://127.0.0.1:5050")
+
 if __name__ == "__main__":
+    threading.Timer(1.5, open_browser).start()
     app.run(host="127.0.0.1", port=5050, debug=False)
