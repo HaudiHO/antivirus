@@ -2,7 +2,7 @@ import os
 import sys
 from flask import Flask, render_template, jsonify, request
 from scanner import scan_all_targets
-from remediation import fix_target
+from remediation import remediate_file as fix_target
 
 def resource_path(relative_path: str) -> str:
     base_path = getattr(sys, "_MEIPASS", os.path.abspath("."))

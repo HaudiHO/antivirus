@@ -25,6 +25,14 @@ def unhide_windows_files(drive):
         "stdout": result.stdout,
         "stderr": result.stderr
     }
+def fix_target(path):
+    try:
+        # пример логики — пока просто заглушка
+        print(f"[+] Fixing: {path}")
+        return True
+    except Exception as e:
+        print(f"[-] Error fixing {path}: {e}")
+        return False
 
 def fix_drive(drive):
     drive_path = Path(drive)
@@ -53,3 +61,4 @@ def fix_drive(drive):
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}
+    
