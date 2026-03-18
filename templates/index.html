@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>USB Fixer</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>USB Fixer</h1>
+      <p>Проверка флешек и внешних дисков на подозрительные файлы</p>
+      <button class="btn primary" onclick="scanTargets()">Сканировать</button>
+    </div>
+
+    <div id="status" class="status">Готов к работе</div>
+    <div id="results" class="grid"></div>
+  </div>
+
+  <script>
+    async function scanTargets() {
+      const status = document.getElementById("status");
+      const results = document.getElementById("results");
+
+      status.textContent = "Идёт сканирование...";
+      results.innerHTML = "";
+
+      try {
+        const res = await fetch("/scan");
+        const data = await res.json();
+
+        status.textContent = "Сканирование завершено";
+
+        if (!data.targets || data.targets.length === 0) {
+          results.innerHTML = `
+            <div class="card">
+              <h3>Ничего не найдено</h3>
+              <p>Подключённые диски или флешки не обнаружены.</p>
+            </div>
+          `;
+          return;
+        }
+
+        results.innerHTML = data.targets.map(t => {
+          const susCount = t.suspicious.length;
+          const hiddenCount = t.hidden_candidates.length;
+
+          return `
+            <div class="card">
+              <div class="topline">
+                <h3>${t.target}</h3>
+                <span class="badge ${susCount ? 'danger' : 'ok'}">
+                  ${susCount ? `Угроз: ${susCount}` : 'Чисто'}
+                </span>
+              </div>
+
+              <p>Скрытых кандидатов: ${hiddenCount}</p>
+
+              ${susCount ? `
+                <div class="list">
+                  ${t.suspicious.map(s => `
+                    <div class="item">
+                      <b>${s.reason}</b><br>
+                      <span>${s.path}</span>
+                    </div>
+                  `).join("")}
+                </div>
+                <button class="btn warn" onclick="fixTarget('${String(t.target).replace(/\\/g, "\\\\")}')">
+                  Исправить
+                </button>
+              ` : `
+                <p>Подозрительных объектов не найдено.</p>
+              `}
+            </div>
+          `;
+        }).join("");
+      } catch (e) {
+        status.textContent = "Ошибка загрузки";
+        results.innerHTML = `
+          <div class="card">
+            <h3>Ошибка</h3>
+            <p>${e}</p>
+          </div>
+        `;
+      }
+    }
+
+    async function fixTarget(target) {
+      const status = document.getElementById("status");
+      status.textContent = `Исправление ${target}...`;
+
+      try {
+        const res = await fetch("/fix", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({target})
+        });
+
+        const data = await res.json();
+
+        if (data.ok) {
+          status.textContent = `Исправление завершено: ${target}`;
+        } else {
+          status.textContent = `Ошибка: ${data.error}`;
+        }
+
+        await scanTargets();
+      } catch (e) {
+        status.textContent = `Ошибка: ${e}`;
+      }
+    }
+
+    window.onload = () => {
+      document.getElementById("status").textContent = "Интерфейс загружен";
+    };
+  </script>
+</body>
+</html>
