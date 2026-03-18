@@ -3,62 +3,64 @@ import shutil
 import subprocess
 from pathlib import Path
 from datetime import datetime
+from signatures import SUSPICIOUS_EXTENSIONS
 
-QUARANTINE_DIR = Path("quarantine")
+BASE_DIR = Path(os.getenv("APPDATA") or Path.home())
+QUARANTINE_DIR = BASE_DIR / "usb_fixer_quarantine"
+LOG_DIR = BASE_DIR / "usb_fixer_logs"
+
 QUARANTINE_DIR.mkdir(exist_ok=True)
+LOG_DIR.mkdir(exist_ok=True)
 
-def quarantine_path(path_str):
+def quarantine_file(path_str: str):
     src = Path(path_str)
     if not src.exists():
         return None
+
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     dst = QUARANTINE_DIR / f"{stamp}_{src.name}"
     shutil.move(str(src), str(dst))
     return str(dst)
 
-def unhide_windows_files(drive):
-    # Снимаем hidden/system/read-only со всего содержимого диска
-    cmd = ['attrib', '-h', '-s', '-r', f'{drive}\\*.*', '/s', '/d']
+def unhide_windows_files(target: str):
+    cmd = ["attrib", "-h", "-s", "-r", f"{target}\\*.*", "/s", "/d"]
     result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
     return {
         "returncode": result.returncode,
         "stdout": result.stdout,
         "stderr": result.stderr
     }
-def fix_target(path):
-    try:
-        # пример логики — пока просто заглушка
-        print(f"[+] Fixing: {path}")
-        return True
-    except Exception as e:
-        print(f"[-] Error fixing {path}: {e}")
-        return False
 
-def fix_drive(drive):
-    drive_path = Path(drive)
+def fix_target(target: str):
+    if not target:
+        return {"ok": False, "error": "Не передан target"}
+
+    root = Path(target)
+    if not root.exists():
+        return {"ok": False, "error": "Путь не найден"}
+
     quarantined = []
-    restored = None
-
-    if os.name != "nt":
-        return {"ok": False, "error": "Исправление доступно только на Windows"}
 
     try:
-        for item in drive_path.iterdir():
-            low = item.name.lower()
+        for item in root.iterdir():
+            low_name = item.name.lower()
+            suffix = item.suffix.lower()
 
-            if low == "autorun.inf" or item.suffix.lower() in {".lnk", ".vbs", ".js", ".cmd", ".bat", ".scr", ".pif"}:
-                q = quarantine_path(str(item))
-                if q:
-                    quarantined.append({"from": str(item), "to": q})
+            if low_name == "autorun.inf" or suffix in SUSPICIOUS_EXTENSIONS:
+                moved = quarantine_file(str(item))
+                if moved:
+                    quarantined.append({"from": str(item), "to": moved})
 
-        restored = unhide_windows_files(drive.rstrip("\\/"))
+        restore_info = None
+        if os.name == "nt":
+            restore_info = unhide_windows_files(target.rstrip("\\/"))
 
         return {
             "ok": True,
-            "drive": drive,
+            "target": target,
             "quarantined": quarantined,
-            "restore_result": restored
+            "restore": restore_info
         }
+
     except Exception as e:
         return {"ok": False, "error": str(e)}
-    
