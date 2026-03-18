@@ -2,40 +2,62 @@ import os
 import re
 import psutil
 from pathlib import Path
+from signatures import SUSPICIOUS_EXTENSIONS
 
-SUSP_EXT = {".lnk", ".vbs", ".js", ".cmd", ".bat", ".scr", ".pif"}
-DOUBLE_EXT_RE = re.compile(r".+\.(jpg|png|pdf|doc|docx|xls|xlsx|txt|mp4|mp3)\.(exe|scr|bat|cmd|vbs)$", re.I)
+DOUBLE_EXT_RE = re.compile(
+    r"^.+(\.(jpg|jpeg|png|gif|pdf|doc|docx|xls|xlsx|txt|mp3|mp4|avi|zip|rar))\.(exe|scr|bat|cmd|vbs|js|pif|wsf)$",
+    re.IGNORECASE
+)
 
-def list_removable_drives():
-    drives = []
-    for p in psutil.disk_partitions(all=False):
-        device = p.device
-        mount = p.mountpoint
-        opts = p.opts.lower()
-        if os.name == "nt":
-            if "removable" in opts or ("cdrom" not in opts and mount[:1].isalpha()):
-                drives.append(mount)
-    return sorted(set(drives))
+def list_targets():
+    targets = []
 
-def inspect_drive(root):
-    root_path = Path(root)
+    if os.name == "nt":
+        for part in psutil.disk_partitions(all=False):
+            mount = part.mountpoint
+            opts = part.opts.lower()
+            if "cdrom" in opts:
+                continue
+            if mount and mount[0].isalpha():
+                targets.append(mount)
+    else:
+        volumes = Path("/Volumes")
+        if volumes.exists():
+            for item in volumes.iterdir():
+                if item.is_dir():
+                    targets.append(str(item))
+
+    return sorted(set(targets))
+
+
+def inspect_target(target: str):
+    root = Path(target)
     suspicious = []
     hidden_candidates = []
 
+    if not root.exists():
+        return {
+            "target": target,
+            "exists": False,
+            "suspicious": [],
+            "hidden_candidates": []
+        }
+
     try:
-        for item in root_path.iterdir():
-            name = item.name.lower()
+        for item in root.iterdir():
+            low_name = item.name.lower()
+            suffix = item.suffix.lower()
 
-            if item.suffix.lower() in SUSP_EXT:
-                suspicious.append({
-                    "path": str(item),
-                    "reason": f"Подозрительное расширение {item.suffix.lower()}"
-                })
-
-            if name == "autorun.inf":
+            if low_name == "autorun.inf":
                 suspicious.append({
                     "path": str(item),
                     "reason": "Найден autorun.inf"
+                })
+
+            if suffix in SUSPICIOUS_EXTENSIONS:
+                suspicious.append({
+                    "path": str(item),
+                    "reason": f"Подозрительное расширение {suffix}"
                 })
 
             if DOUBLE_EXT_RE.match(item.name):
@@ -44,18 +66,25 @@ def inspect_drive(root):
                     "reason": "Подозрительное двойное расширение"
                 })
 
-            # Частая ситуация: настоящая папка скрыта, а рядом лежит .lnk
             if item.is_dir() and item.name.startswith("."):
                 hidden_candidates.append(str(item))
 
     except PermissionError:
-        pass
+        suspicious.append({
+            "path": str(root),
+            "reason": "Нет доступа к части файлов"
+        })
 
     return {
-        "drive": root,
+        "target": target,
+        "exists": True,
         "suspicious": suspicious,
         "hidden_candidates": hidden_candidates
     }
 
-def scan_all_removable_drives():
-    return [inspect_drive(d) for d in list_removable_drives()]
+
+def scan_all_targets():
+    targets = list_targets()
+    return {
+        "targets": [inspect_target(t) for t in targets]
+    }

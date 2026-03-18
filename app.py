@@ -1,8 +1,18 @@
+import os
+import sys
 from flask import Flask, render_template, jsonify, request
 from scanner import scan_all_targets
 from remediation import fix_target
 
-app = Flask(__name__)
+def resource_path(relative_path: str) -> str:
+    base_path = getattr(sys, "_MEIPASS", os.path.abspath("."))
+    return os.path.join(base_path, relative_path)
+
+app = Flask(
+    __name__,
+    template_folder=resource_path("templates"),
+    static_folder=resource_path("static")
+)
 
 @app.route("/")
 def index():
@@ -10,8 +20,7 @@ def index():
 
 @app.route("/scan")
 def scan():
-    result = scan_all_targets()
-    return jsonify(result)
+    return jsonify(scan_all_targets())
 
 @app.route("/fix", methods=["POST"])
 def fix():
@@ -20,5 +29,4 @@ def fix():
     return jsonify(fix_target(target))
 
 if __name__ == "__main__":
-    # debug=False, чтобы не торчал дебаггер
     app.run(host="127.0.0.1", port=5050, debug=False)
